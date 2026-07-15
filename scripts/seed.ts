@@ -73,6 +73,7 @@ async function main() {
     const hour = Math.max(0, Math.min(23, Math.round(9 + gaussian() * 4)));
     const ts = new Date(now - daysAgo * 864e5);
     ts.setHours(hour, randInt(0, 59), randInt(0, 59), 0);
+    if (ts.getTime() > now) ts.setTime(now - randInt(60000, 21600000));
     rows.push({
       sessionId: `sess_${randInt(100000, 999999)}`,
       userId: signedIn ? rand(userIds) : null,

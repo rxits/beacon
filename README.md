@@ -1,10 +1,10 @@
 # Beacon
 
-**A real-time, monochrome, liquid-glass visitor-analytics dashboard — a dashboard that watches itself.**
+> **Hiring assignment** — designed & built by **Rakshit (rxit)** for **[e42.ai](https://e42.ai)**.
 
-Beacon's own pages are the tracked property: every visit becomes a live event. Signed-in users open the dashboard and watch the stream — who visited, from where, on what device — as KPI tiles, a world map, charts, and a live activity table. Anonymous visitors are recorded by hashed IP; signed-in users by identity.
+**A real-time visitor-analytics dashboard that watches itself.** Beacon's own pages are the tracked property: every visit becomes a live event — who, from where, on what device — surfaced as KPI tiles, a 3D globe, colored charts, and a streaming activity feed. Anonymous visitors are recorded by public IP; signed-in users by identity.
 
-Built with **Next.js 16 (App Router) · TypeScript · Postgres · Drizzle · Auth.js v5**, in a strict **black-and-white** design system with liquid glass, dark/light themes, and reduced-motion support.
+Built with **Next.js 16 (App Router) · TypeScript · PostgreSQL · Drizzle · Auth.js v5**, in a custom glass design system with a 3D WebGL globe, dark/light themes, and reduced-motion support.
 
 ---
 
@@ -30,33 +30,35 @@ pnpm seed
 pnpm dev          # → http://localhost:3000
 ```
 
-**Demo login:** `demo@beacon.local` / `demo1234`
-
-> **If your shell blocks pnpm's post-install build approval** (`ERR_PNPM_IGNORED_BUILDS`), either run `pnpm approve-builds` once, or call the binaries directly — they always work:
-> `./node_modules/.bin/next dev` · `./node_modules/.bin/tsx scripts/seed.ts` · `./node_modules/.bin/drizzle-kit push` · `./node_modules/.bin/vitest run`
+**Demo login:** `demo@beacon.local` / `demo1234` · or click **Continue as guest**.
 
 ```bash
 pnpm test          # unit tests (IP derivation, hashing, UA/bot parsing)
 pnpm build         # production build
 ```
 
-## What's built
+> If your shell blocks pnpm's post-install build approval (`ERR_PNPM_IGNORED_BUILDS`), run `pnpm approve-builds` once, or call binaries directly: `./node_modules/.bin/next dev`, `./node_modules/.bin/tsx scripts/seed.ts`, `./node_modules/.bin/drizzle-kit push`.
 
-- **Auth** — email + password (bcrypt) via Auth.js v5; "Continue with Google" appears automatically if `AUTH_GOOGLE_ID/SECRET` are set. Guarded `/dashboard/*` routes.
-- **Ingest** — a client beacon posts every visit to `POST /api/track`; the server derives the real IP (trusted right-most `x-forwarded-for`), geo, and device, rate-limits and bot-filters, and stores a **salted hash** of the IP by default (never the raw IP).
-- **Dashboard** — sidebar + liquid-glass header, dark/light toggle, `24h/7d/30d` range. KPI tiles (visits, uniques, signed-in %, live now, top country), a gradient visits chart (visits vs uniques), a monochrome density **world map**, device/referrer breakdown, and a **live activity table** (filter, search, paginate, new-row highlight).
+## Features
+
+- **Authentication** — email + password (bcrypt), **Continue as guest**, and "Continue with Google" (auto-enabled when `AUTH_GOOGLE_ID/SECRET` are set). Editable profile (name / password) in Settings. Guarded `/dashboard/*` routes.
+- **Real activity capture** — a client beacon posts every visit to `POST /api/track`; the server derives the real IP (trusted right-most `x-forwarded-for`), geo, and device, rate-limits and bot-filters, and stores a salted IP hash alongside the raw IP.
+- **Dashboard** — sidebar + glass header, dark/light toggle, `24h/7d/30d` range. KPI tiles (visits, uniques, signed-in %, live now, top country) with count-ups and sparklines; a colored visits chart (visits vs uniques); a **3D WebGL globe** of live visitor locations; device/referrer breakdown; and a **live activity table** — filter, search, paginate, new-row highlight, and **click any row for full details** (identity, IP, location, device, session).
 - **Pages** — Overview, Activity, Users, Map, Settings.
+- **Privacy** — transparent consent notice, hashed IPs, documented handling & threat model.
+
+## How visitor IP is captured
+
+- **Public IP** — the reliable, routable address of the network the visitor is on. Read server-side from `x-forwarded-for` in production; on localhost (where the server only sees `127.0.0.1`) the client resolves it via a free lookup and the server accepts it only as a fallback.
+- **Private / LAN IP** — attempted best-effort via WebRTC. Modern browsers deliberately mask this behind an `.local` mDNS placeholder, so it's shown honestly as *"Hidden by browser"* when unavailable. No web page can reliably obtain a device's LAN IP by design.
 
 ## Documentation
 
-Full design lives in [`docs/`](docs/): [product spec](docs/00-product-spec.md), [architecture](docs/01-system-architecture.md), [data model](docs/02-data-model.md), [API](docs/03-api-design.md), [UI/UX](docs/04-ui-ux-spec.md), [privacy & security](docs/05-privacy-security.md), [ADRs](docs/06-adrs.md), and the [implementation plan](docs/07-implementation-plan.md).
+Full design in [`docs/`](docs/): [product spec](docs/00-product-spec.md), [architecture](docs/01-system-architecture.md), [data model](docs/02-data-model.md), [API](docs/03-api-design.md), [UI/UX](docs/04-ui-ux-spec.md), [privacy & security](docs/05-privacy-security.md), [ADRs](docs/06-adrs.md), and the [implementation plan](docs/07-implementation-plan.md).
 
-## Notes / deliberate decisions
+## Tech stack
 
-- **Live feed via polling** (4s) rather than SSE — simpler, same effect for a localhost demo; SSE is the documented upgrade path.
-- **Geo** uses `geoip-lite` when its (licensed) country DB is present and degrades gracefully to "unknown" otherwise. On localhost all visitors are private-IP, so the map is populated by the seeded data; real public visits resolve in production.
-- **IP is hashed by default** (`IP_STORAGE_MODE=hashed`); raw IPs are never serialized to the client.
-- Seeded with **20 demo users**; real visits (including yours) are captured and appended on top.
+Next.js 16 · React 19 · TypeScript (strict) · Tailwind CSS v4 · PostgreSQL 16 · Drizzle ORM · Auth.js v5 · Recharts · cobe (3D globe) · TanStack Table · Framer Motion · ua-parser-js · geoip-lite · zod · bcryptjs · pnpm.
 
 ## Environment variables
 
@@ -67,4 +69,16 @@ Full design lives in [`docs/`](docs/): [product spec](docs/00-product-spec.md), 
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Optional Google OAuth |
 | `IP_SALT` | Salt for hashing visitor IPs |
 | `TRUSTED_PROXY_HOPS` | Trusted proxy count for `x-forwarded-for` (default `1`) |
-| `IP_STORAGE_MODE` | `hashed` (default) or `raw` |
+| `IP_STORAGE_MODE` | `raw` (default here) or `hashed` |
+
+## Notes / deliberate decisions
+
+- Live feed via **polling** (4s) rather than SSE — simpler, same effect for a localhost demo; SSE is the documented upgrade path.
+- **Geo** uses `geoip-lite` when its country DB is present and degrades gracefully otherwise; on localhost the seeded data drives the globe while real public visits resolve live.
+- Seeded with **20 demo users** so the dashboard is rich on first load; real visits (including yours) are captured and appended.
+
+---
+
+## About
+
+This project is a **hiring assignment** created by **Rakshit (rxit)** for **[e42.ai](https://e42.ai)**. It demonstrates end-to-end product engineering — real-time data capture, a considered schema, authentication, privacy handling, and an original, polished UI — from a written design spec through to a working, tested, production-building app.

@@ -13,6 +13,12 @@ const Body = z.object({
   referrer: z.string().max(2048).nullish(),
   eventType: z.enum(['page_view', 'login', 'signup', 'click']).optional(),
   sessionId: z.string().max(128).nullish(),
+  ipHint: z.string().max(45).nullish(),
+  geoHint: z.object({
+    city: z.string().max(120).nullish(), region: z.string().max(120).nullish(),
+    country: z.string().max(120).nullish(), countryCode: z.string().max(3).nullish(),
+    latitude: z.number().nullish(), longitude: z.number().nullish(),
+  }).nullish(),
 });
 
 export async function POST(req: NextRequest) {

@@ -59,7 +59,7 @@ export function ActivityTable({ compact = false }: { compact?: boolean }) {
                 <td style={td}>
                   {e.identity === 'user'
                     ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Avatar name={e.user?.name ?? e.user?.email ?? '?'} />{e.user?.name ?? e.user?.email}</span>
-                    : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }} className="text-dim"><Avatar name="?" anon /><span>Anonymous <span className="mono text-mute" style={{ fontSize: '.7rem' }}>#{e.anonId}</span></span></span>}
+                    : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }} className="text-dim"><Avatar name="?" anon /><span>Anonymous <span className="mono text-mute" style={{ fontSize: '.7rem' }}>{e.ip ?? '#' + e.anonId}</span></span></span>}
                 </td>
                 <td style={td}><span className="text-dim">{flag(e.location.countryCode)} {e.location.city ?? e.location.country ?? 'Local'}</span></td>
                 <td style={td}><span className="text-dim">{e.device.browser ?? '—'}{e.device.os ? ` · ${e.device.os}` : ''}</span></td>

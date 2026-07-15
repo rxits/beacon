@@ -3,6 +3,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { ChartTooltip } from './ChartTooltip';
 
 type Point = { t: string; visits: number; uniques: number };
+const VISITS = '#22d3ee';
+const UNIQUES = '#a78bfa';
 
 export function VisitsChart({ data, range }: { data: Point[]; range: string }) {
   const fmt = (t: string | number) => {
@@ -15,16 +17,16 @@ export function VisitsChart({ data, range }: { data: Point[]; range: string }) {
         <AreaChart data={data} margin={{ top: 8, right: 6, bottom: 0, left: -20 }}>
           <defs>
             <linearGradient id="visitsFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="currentColor" stopOpacity={0.2} />
-              <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
+              <stop offset="0%" stopColor={VISITS} stopOpacity={0.35} />
+              <stop offset="100%" stopColor={VISITS} stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid stroke="currentColor" strokeOpacity={0.08} vertical={false} />
           <XAxis dataKey="t" tickFormatter={fmt} tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={28} />
           <YAxis tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 11 }} tickLine={false} axisLine={false} width={46} allowDecimals={false} />
           <Tooltip content={<ChartTooltip fmt={fmt} />} cursor={{ stroke: 'currentColor', strokeOpacity: 0.2 }} />
-          <Area type="monotone" dataKey="visits" name="Visits" stroke="currentColor" strokeWidth={2} fill="url(#visitsFill)" isAnimationActive />
-          <Area type="monotone" dataKey="uniques" name="Uniques" stroke="currentColor" strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 3" fill="none" isAnimationActive />
+          <Area type="monotone" dataKey="visits" name="Visits" stroke={VISITS} strokeWidth={2.4} fill="url(#visitsFill)" isAnimationActive />
+          <Area type="monotone" dataKey="uniques" name="Uniques" stroke={UNIQUES} strokeWidth={1.8} strokeDasharray="4 3" fill="none" isAnimationActive />
         </AreaChart>
       </ResponsiveContainer>
     </div>

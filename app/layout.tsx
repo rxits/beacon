@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
       <body className={`${sans.variable} ${mono.variable}`}>
-        <div className="bg-grain" aria-hidden />
+        <div className="bg-aurora" aria-hidden /><div className="bg-grain" aria-hidden />
         {children}
         <BeaconTracker />
         <ConsentBanner />

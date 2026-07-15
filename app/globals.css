@@ -92,3 +92,44 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-sans);
 .row-new { animation: row-in 2.2s ease-out; }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ---------- Color accents (aurora over the glass) ---------- */
+:root, :root[data-theme="dark"] {
+  --a1: #6366f1; --a2: #8b5cf6; --a3: #22d3ee; --a4: #f472b6;
+  --grad: linear-gradient(120deg, #818cf8, #a78bfa 42%, #22d3ee);
+  --up: #34d399; --down: #fb7185;
+}
+:root[data-theme="light"] {
+  --a1: #4f46e5; --a2: #7c3aed; --a3: #0891b2; --a4: #db2777;
+  --grad: linear-gradient(120deg, #4f46e5, #7c3aed 42%, #0891b2);
+  --up: #059669; --down: #e11d48;
+}
+body::before {
+  content: ''; position: fixed; inset: -25%; z-index: -2; pointer-events: none; opacity: .5;
+  background:
+    radial-gradient(38% 38% at 15% 12%, color-mix(in oklab, var(--a1) 55%, transparent), transparent 70%),
+    radial-gradient(36% 36% at 85% 6%, color-mix(in oklab, var(--a3) 48%, transparent), transparent 70%),
+    radial-gradient(44% 44% at 72% 92%, color-mix(in oklab, var(--a2) 42%, transparent), transparent 72%);
+  filter: blur(46px) saturate(1.2);
+  animation: aurora 24s ease-in-out infinite alternate;
+}
+:root[data-theme="light"] body::before { opacity: .3; }
+@keyframes aurora { 0% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(2%,-2%,0) scale(1.08); } 100% { transform: translate3d(-2%,1%,0) scale(1.03); } }
+.grad-text { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tilt { transform-style: preserve-3d; transition: transform .18s ease; will-change: transform; }
+@media (prefers-reduced-motion: reduce) { body::before { animation: none; } .tilt { transition: none; } }
+
+/* aurora as a real element (reliable over the opaque body bg) + gradient-text fix */
+body::before { display: none; }
+.bg-aurora {
+  position: fixed; inset: -20%; z-index: -1; pointer-events: none; opacity: .62;
+  background:
+    radial-gradient(36% 40% at 14% 12%, color-mix(in oklab, var(--a1) 70%, transparent), transparent 68%),
+    radial-gradient(34% 38% at 86% 8%, color-mix(in oklab, var(--a3) 62%, transparent), transparent 68%),
+    radial-gradient(42% 46% at 74% 94%, color-mix(in oklab, var(--a2) 55%, transparent), transparent 70%);
+  filter: blur(52px) saturate(1.3);
+  animation: aurora 24s ease-in-out infinite alternate;
+}
+:root[data-theme="light"] .bg-aurora { opacity: .34; }
+.grad-text { -webkit-text-fill-color: transparent; }
+@media (prefers-reduced-motion: reduce) { .bg-aurora { animation: none; } }

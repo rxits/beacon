@@ -25,7 +25,7 @@ const providers: NextAuthConfig['providers'] = [
 ];
 if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) providers.push(Google);
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   ...authConfig,
   adapter: DrizzleAdapter(db, {
     usersTable: users, accountsTable: accounts,

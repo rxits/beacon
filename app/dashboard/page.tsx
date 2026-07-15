@@ -1,14 +1,15 @@
 'use client';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRange } from '@/components/dashboard/dashboard-context';
 import type { StatsResponse } from '@/lib/queries';
 import { KpiTile } from '@/components/dashboard/KpiTile';
 import { PageHeading } from '@/components/dashboard/PageHeading';
 import { GlassPanel } from '@/components/GlassPanel';
 import { VisitsChart } from '@/components/charts/VisitsChart';
-import { WorldMap } from '@/components/charts/WorldMap';
+import { Globe, type Marker } from '@/components/charts/Globe';
 import { BreakdownChart } from '@/components/charts/BreakdownChart';
 import { ActivityTable } from '@/components/dashboard/ActivityTable';
+import { TiltCard } from '@/components/TiltCard';
 import { flag } from '@/lib/format';
 
 export default function Overview() {
@@ -22,29 +23,37 @@ export default function Overview() {
   const k = stats?.kpis;
   const visitsSpark = stats?.series.visits_over_time.map((p) => p.visits) ?? [];
   const uniqSpark = stats?.series.visits_over_time.map((p) => p.uniques) ?? [];
+  const markers = useMemo<Marker[]>(() => {
+    const g = stats?.series.by_geo ?? [];
+    const max = Math.max(1, ...g.map((x) => x.value));
+    return g.map((x) => ({ location: [x.lat, x.lng] as [number, number], size: 0.035 + (x.value / max) * 0.09 }));
+  }, [stats]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
       <PageHeading title="Overview" subtitle="Live traffic across your property" />
       <div className="kpi-grid">
-        <KpiTile label="Total visits" value={k?.total_visits.value ?? 0} deltaPct={k?.total_visits.delta_pct} spark={visitsSpark} />
-        <KpiTile label="Unique visitors" value={k?.unique_visitors.value ?? 0} deltaPct={k?.unique_visitors.delta_pct} spark={uniqSpark} />
-        <KpiTile label="Signed in" value={Math.round((k?.signed_in_ratio.value ?? 0) * 100)} suffix="%" />
-        <KpiTile label="Live now" value={k?.live_now.value ?? 0} />
-        <GlassPanel hoverable className="glass-2" style={{ padding: '1.1rem 1.2rem', display: 'flex', flexDirection: 'column', gap: '.7rem', minHeight: 128, justifyContent: 'space-between' }}>
-          <span style={{ fontSize: '.72rem', letterSpacing: '.04em', textTransform: 'uppercase' }} className="text-mute">Top country</span>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: '1.7rem' }}>{flag(k?.top_country.country_code ?? null)}</span>
-              <span style={{ fontSize: '1.05rem', fontWeight: 620, letterSpacing: '-0.01em' }}>{k?.top_country.country ?? '—'}</span>
+        <KpiTile label="Total visits" value={k?.total_visits.value ?? 0} deltaPct={k?.total_visits.delta_pct} spark={visitsSpark} accent="var(--a3)" />
+        <KpiTile label="Unique visitors" value={k?.unique_visitors.value ?? 0} deltaPct={k?.unique_visitors.delta_pct} spark={uniqSpark} accent="var(--a1)" />
+        <KpiTile label="Signed in" value={Math.round((k?.signed_in_ratio.value ?? 0) * 100)} suffix="%" accent="var(--a2)" />
+        <KpiTile label="Live now" value={k?.live_now.value ?? 0} accent="var(--a4)" />
+        <TiltCard>
+          <GlassPanel hoverable className="glass-2" style={{ padding: '1.1rem 1.2rem', display: 'flex', flexDirection: 'column', gap: '.7rem', minHeight: 128, height: '100%', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
+            <span style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--grad)', opacity: 0.8 }} />
+            <span style={{ fontSize: '.72rem', letterSpacing: '.04em', textTransform: 'uppercase' }} className="text-mute">Top country</span>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: '1.7rem' }}>{flag(k?.top_country.country_code ?? null)}</span>
+                <span style={{ fontSize: '1.05rem', fontWeight: 620, letterSpacing: '-0.01em' }}>{k?.top_country.country ?? '—'}</span>
+              </div>
+              <span className="mono text-mute" style={{ fontSize: '.75rem' }}>{k?.top_country.value ?? 0} visits</span>
             </div>
-            <span className="mono text-mute" style={{ fontSize: '.75rem' }}>{k?.top_country.value ?? 0} visits</span>
-          </div>
-        </GlassPanel>
+          </GlassPanel>
+        </TiltCard>
       </div>
 
       <div className="chart-row">
-        <Panel title="Visits over time" subtitle={`Solid = visits · dashed = unique · ${range}`}>
+        <Panel title="Visits over time" subtitle={`Cyan = visits · violet = unique · ${range}`}>
           <VisitsChart data={stats?.series.visits_over_time ?? []} range={range} />
         </Panel>
         <Panel title="Breakdown" subtitle="Device mix & top sources">
@@ -52,14 +61,14 @@ export default function Overview() {
         </Panel>
       </div>
 
-      <Panel title="Where visitors are" subtitle="Visit density by country — darker = more traffic">
-        <WorldMap data={stats?.series.by_country ?? []} />
+      <Panel title="Where visitors are" subtitle="Live locations on the globe — drag to spin">
+        <Globe markers={markers} />
       </Panel>
 
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.6rem' }}>
           <h2 style={{ fontSize: '.95rem', fontWeight: 600 }}>Live activity</h2>
-          <span className="text-mute" style={{ fontSize: '.75rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="live-dot" /> streaming</span>
+          <span className="text-mute" style={{ fontSize: '.75rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="live-dot" style={{ background: 'var(--grad)' }} /> streaming</span>
         </div>
         <ActivityTable compact />
       </div>

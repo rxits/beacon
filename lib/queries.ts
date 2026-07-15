@@ -21,12 +21,12 @@ export type StatsResponse = {
     by_country: Array<{ country: string | null; country_code: string | null; value: number }>;
     by_device: Array<{ device: string; value: number }>;
     by_referrer: Array<{ source: string; value: number }>;
+    by_geo: Array<{ lat: number; lng: number; value: number; country: string | null }>;
   };
 };
 
 const ts = (v: unknown) => new Date(v as string).getTime();
-const delta = (cur: number, prev: number): number | null =>
-  prev === 0 ? null : Math.round(((cur - prev) / prev) * 1000) / 10;
+const delta = (cur: number, prev: number): number | null => (prev === 0 ? null : Math.round(((cur - prev) / prev) * 1000) / 10);
 const uniqKey = (r: { userId: string | null; ipHash: string | null }) => r.userId ?? r.ipHash ?? 'unknown';
 const referrerHost = (r: string | null): string => {
   if (!r) return 'Direct';
@@ -43,7 +43,7 @@ export async function getStats(range: Range): Promise<StatsResponse> {
     .select({
       createdAt: events.createdAt, userId: events.userId, ipHash: events.ipHash,
       sessionId: events.sessionId, country: events.country, countryCode: events.countryCode,
-      deviceType: events.deviceType, referrer: events.referrer,
+      deviceType: events.deviceType, referrer: events.referrer, latitude: events.latitude, longitude: events.longitude,
     })
     .from(events)
     .where(gte(events.createdAt, prevStart));
@@ -59,32 +59,30 @@ export async function getStats(range: Range): Promise<StatsResponse> {
   const liveCutoff = now - 5 * 60_000;
   const liveNow = new Set(cur.filter((r) => ts(r.createdAt) >= liveCutoff).map((r) => r.sessionId ?? uniqKey(r))).size;
 
-  // top country
   const countryCounts = new Map<string, { country: string | null; code: string | null; n: number }>();
+  const deviceCounts = new Map<string, number>();
+  const refCounts = new Map<string, number>();
+  const geoAgg = new Map<string, { lat: number; lng: number; value: number; country: string | null }>();
   for (const r of cur) {
-    const key = r.countryCode ?? 'ZZ';
-    const c = countryCounts.get(key) ?? { country: r.country, code: r.countryCode, n: 0 };
-    c.n += 1;
-    countryCounts.set(key, c);
+    const ckey = r.countryCode ?? 'ZZ';
+    const c = countryCounts.get(ckey) ?? { country: r.country, code: r.countryCode, n: 0 };
+    c.n += 1; countryCounts.set(ckey, c);
+    deviceCounts.set(r.deviceType ?? 'unknown', (deviceCounts.get(r.deviceType ?? 'unknown') ?? 0) + 1);
+    const host = referrerHost(r.referrer);
+    refCounts.set(host, (refCounts.get(host) ?? 0) + 1);
+    if (r.latitude != null && r.longitude != null) {
+      const gkey = r.countryCode ?? `${r.latitude.toFixed(1)},${r.longitude.toFixed(1)}`;
+      const g = geoAgg.get(gkey) ?? { lat: r.latitude, lng: r.longitude, value: 0, country: r.country };
+      g.value += 1; geoAgg.set(gkey, g);
+    }
   }
   const byCountry = [...countryCounts.values()].sort((a, b) => b.n - a.n);
   const top = byCountry[0];
 
-  // device + referrer breakdown
-  const deviceCounts = new Map<string, number>();
-  const refCounts = new Map<string, number>();
-  for (const r of cur) {
-    deviceCounts.set(r.deviceType ?? 'unknown', (deviceCounts.get(r.deviceType ?? 'unknown') ?? 0) + 1);
-    const host = referrerHost(r.referrer);
-    refCounts.set(host, (refCounts.get(host) ?? 0) + 1);
-  }
-
-  // visits over time buckets
   const buckets = range === '24h' ? 24 : range === '7d' ? 7 : 30;
   const step = range === '24h' ? 3600e3 : 864e5;
   const series = Array.from({ length: buckets }, (_, i) => {
-    const start = now - (buckets - i) * step;
-    const end = start + step;
+    const start = now - (buckets - i) * step, end = start + step;
     const inB = cur.filter((r) => ts(r.createdAt) >= start && ts(r.createdAt) < end);
     return { t: new Date(start).toISOString(), visits: inB.length, uniques: new Set(inB.map(uniqKey)).size };
   });
@@ -103,15 +101,12 @@ export async function getStats(range: Range): Promise<StatsResponse> {
       by_country: byCountry.slice(0, 12).map((c) => ({ country: c.country, country_code: c.code, value: c.n })),
       by_device: [...deviceCounts.entries()].map(([device, value]) => ({ device, value })).sort((a, b) => b.value - a.value),
       by_referrer: [...refCounts.entries()].map(([source, value]) => ({ source, value })).sort((a, b) => b.value - a.value).slice(0, 6),
+      by_geo: [...geoAgg.values()],
     },
   };
 }
 
-export type ListParams = {
-  limit?: number; offset?: number;
-  signedIn?: boolean; country?: string; device?: string; eventType?: string;
-  search?: string; since?: string;
-};
+export type ListParams = { limit?: number; offset?: number; signedIn?: boolean; country?: string; device?: string; eventType?: string; search?: string; since?: string };
 
 export async function listEvents(p: ListParams): Promise<{ items: EventDTO[]; total: number }> {
   const conds: SQL[] = [];
@@ -123,25 +118,11 @@ export async function listEvents(p: ListParams): Promise<{ items: EventDTO[]; to
   if (p.since) conds.push(gt(events.createdAt, new Date(p.since)));
   if (p.search) {
     const s = `%${p.search}%`;
-    const clause = or(ilike(events.path, s), ilike(events.city, s), ilike(events.country, s), ilike(users.name, s), ilike(users.email, s));
+    const clause = or(ilike(events.path, s), ilike(events.city, s), ilike(events.country, s), ilike(events.ip, s), ilike(users.name, s), ilike(users.email, s));
     if (clause) conds.push(clause);
   }
   const where = conds.length ? and(...conds) : undefined;
-
-  const rows = await db
-    .select({ e: events, uName: users.name, uEmail: users.email })
-    .from(events)
-    .leftJoin(users, eq(events.userId, users.id))
-    .where(where)
-    .orderBy(desc(events.createdAt))
-    .limit(Math.min(100, p.limit ?? 25))
-    .offset(Math.max(0, p.offset ?? 0));
-
-  const totalRes = await db
-    .select({ c: sql<number>`count(*)::int` })
-    .from(events)
-    .leftJoin(users, eq(events.userId, users.id))
-    .where(where);
-
+  const rows = await db.select({ e: events, uName: users.name, uEmail: users.email }).from(events).leftJoin(users, eq(events.userId, users.id)).where(where).orderBy(desc(events.createdAt)).limit(Math.min(100, p.limit ?? 25)).offset(Math.max(0, p.offset ?? 0));
+  const totalRes = await db.select({ c: sql<number>`count(*)::int` }).from(events).leftJoin(users, eq(events.userId, users.id)).where(where);
   return { items: rows.map((r) => toEventDTO(r.e, r.uName, r.uEmail)), total: totalRes[0]?.c ?? 0 };
 }

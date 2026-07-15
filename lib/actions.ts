@@ -3,24 +3,24 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 import { AuthError } from 'next-auth';
+import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
 import { users } from '@/db/schema';
-import { signIn } from '@/auth';
+import { signIn, auth, unstable_update } from '@/auth';
 
 export type AuthState = { error?: string };
+export type ProfileState = { error?: string; ok?: boolean };
 
 const Login = z.object({ email: z.string().email(), password: z.string().min(1) });
 const Signup = z.object({ name: z.string().min(1).max(80), email: z.string().email(), password: z.string().min(8).max(200) });
+const GUEST_EMAIL = 'guest@beacon.local';
+const GUEST_PASSWORD = 'guest-pass-beacon';
 
 export async function loginAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = Login.safeParse({ email: formData.get('email'), password: formData.get('password') });
   if (!parsed.success) return { error: 'Enter a valid email and password.' };
-  try {
-    await signIn('credentials', { ...parsed.data, redirectTo: '/dashboard' });
-  } catch (e) {
-    if (e instanceof AuthError) return { error: 'Invalid email or password.' };
-    throw e;
-  }
+  try { await signIn('credentials', { ...parsed.data, redirectTo: '/dashboard' }); }
+  catch (e) { if (e instanceof AuthError) return { error: 'Invalid email or password.' }; throw e; }
   return {};
 }
 
@@ -28,19 +28,40 @@ export async function signupAction(_prev: AuthState, formData: FormData): Promis
   const parsed = Signup.safeParse({ name: formData.get('name'), email: formData.get('email'), password: formData.get('password') });
   if (!parsed.success) return { error: 'Fill every field; password needs 8+ characters.' };
   const email = parsed.data.email.toLowerCase();
-  const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
-  if (existing) return { error: 'An account with that email already exists.' };
+  if (await db.query.users.findFirst({ where: eq(users.email, email) })) return { error: 'An account with that email already exists.' };
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
   await db.insert(users).values({ name: parsed.data.name, email, passwordHash });
-  try {
-    await signIn('credentials', { email, password: parsed.data.password, redirectTo: '/dashboard' });
-  } catch (e) {
-    if (e instanceof AuthError) return { error: 'Account created — please sign in.' };
-    throw e;
-  }
+  try { await signIn('credentials', { email, password: parsed.data.password, redirectTo: '/dashboard' }); }
+  catch (e) { if (e instanceof AuthError) return { error: 'Account created — please sign in.' }; throw e; }
   return {};
 }
 
 export async function googleAction(): Promise<void> {
   await signIn('google', { redirectTo: '/dashboard' });
+}
+
+export async function guestAction(): Promise<void> {
+  const existing = await db.query.users.findFirst({ where: eq(users.email, GUEST_EMAIL) });
+  if (!existing) {
+    const passwordHash = await bcrypt.hash(GUEST_PASSWORD, 12);
+    await db.insert(users).values({ name: 'Guest', email: GUEST_EMAIL, passwordHash });
+  }
+  await signIn('credentials', { email: GUEST_EMAIL, password: GUEST_PASSWORD, redirectTo: '/dashboard' });
+}
+
+export async function updateProfileAction(_prev: ProfileState, formData: FormData): Promise<ProfileState> {
+  const session = await auth();
+  if (!session?.user?.id) return { error: 'Not signed in.' };
+  const name = String(formData.get('name') ?? '').trim();
+  const password = String(formData.get('password') ?? '');
+  if (name.length < 1 || name.length > 80) return { error: 'Name must be 1–80 characters.' };
+  const patch: { name: string; passwordHash?: string } = { name };
+  if (password) {
+    if (password.length < 8) return { error: 'New password needs 8+ characters.' };
+    patch.passwordHash = await bcrypt.hash(password, 12);
+  }
+  await db.update(users).set(patch).where(eq(users.id, session.user.id));
+  await unstable_update({ user: { name } });
+  revalidatePath('/dashboard', 'layout');
+  return { ok: true };
 }

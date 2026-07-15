@@ -8,6 +8,7 @@ export type EventDTO = {
   referrer: string | null;
   identity: 'user' | 'anonymous';
   user: { name: string | null; email: string | null } | null;
+  ip: string | null;
   anonId: string | null;
   location: {
     city: string | null; region: string | null; country: string | null;
@@ -26,6 +27,7 @@ export function toEventDTO(e: Event, uName?: string | null, uEmail?: string | nu
     referrer: e.referrer,
     identity: anon ? 'anonymous' : 'user',
     user: anon ? null : { name: uName ?? null, email: uEmail ?? null },
+    ip: e.ip ?? null,
     anonId: anon ? (e.ipHash ? e.ipHash.slice(0, 8) : null) : null,
     location: {
       city: e.city, region: e.region, country: e.country,

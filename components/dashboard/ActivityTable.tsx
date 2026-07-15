@@ -4,6 +4,7 @@ import { useLiveFeed } from './live-feed';
 import type { EventDTO } from '@/lib/dto';
 import { flag, rel } from '@/lib/format';
 import { GlassPanel } from '@/components/GlassPanel';
+import { EventDetail } from './EventDetail';
 
 const th = { textAlign: 'left', padding: '.6rem .9rem', fontSize: '.68rem', letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-mute)', fontWeight: 500, whiteSpace: 'nowrap' } as const;
 const td = { padding: '.6rem .9rem', fontSize: '.82rem', borderTop: '1px solid var(--border)', whiteSpace: 'nowrap' } as const;
@@ -15,6 +16,7 @@ export function ActivityTable({ compact = false }: { compact?: boolean }) {
   const [offset, setOffset] = useState(0);
   const [identity, setIdentity] = useState<'all' | 'user' | 'anonymous'>('all');
   const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<EventDTO | null>(null);
   const limit = compact ? 8 : 14;
 
   const load = useCallback(async () => {
@@ -40,26 +42,24 @@ export function ActivityTable({ compact = false }: { compact?: boolean }) {
           <div role="tablist" style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 10, padding: 3 }}>
             {(['all', 'user', 'anonymous'] as const).map((f) => (
               <button key={f} role="tab" aria-selected={identity === f} onClick={() => { setIdentity(f); setOffset(0); }}
-                style={{ padding: '.3rem .6rem', fontSize: '.75rem', borderRadius: 7, border: 'none', cursor: 'pointer', textTransform: 'capitalize',
-                  background: identity === f ? 'var(--accent)' : 'transparent', color: identity === f ? 'var(--accent-contrast)' : 'var(--text-dim)', fontWeight: identity === f ? 600 : 500 }}>{f}</button>
+                style={{ padding: '.3rem .6rem', fontSize: '.75rem', borderRadius: 7, border: 'none', cursor: 'pointer', textTransform: 'capitalize', background: identity === f ? 'var(--accent)' : 'transparent', color: identity === f ? 'var(--accent-contrast)' : 'var(--text-dim)', fontWeight: identity === f ? 600 : 500 }}>{f}</button>
             ))}
           </div>
-          <input className="input" placeholder="Search path, city, user…" value={search} onChange={(e) => { setSearch(e.target.value); setOffset(0); }} style={{ maxWidth: 260, height: 34, marginLeft: 'auto' }} />
+          <input className="input" placeholder="Search path, city, IP, user…" value={search} onChange={(e) => { setSearch(e.target.value); setOffset(0); }} style={{ maxWidth: 260, height: 34, marginLeft: 'auto' }} />
         </div>
       )}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr>
-            <th style={th}>When</th><th style={th}>Who</th><th style={th}>Where</th><th style={th}>Device</th><th style={th}>Path</th><th style={th}>Source</th>
-          </tr></thead>
+          <thead><tr><th style={th}>When</th><th style={th}>Who</th><th style={th}>Where</th><th style={th}>Device</th><th style={th}>Path</th><th style={th}>Source</th></tr></thead>
           <tbody>
             {rows.map(({ e, fresh }) => (
-              <tr key={e.id} className={fresh ? 'row-new' : undefined}>
+              <tr key={e.id} className={`act-row${fresh ? ' row-new' : ''}`} onClick={() => setSelected(e)} role="button" tabIndex={0}
+                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setSelected(e); } }} style={{ cursor: 'pointer' }}>
                 <td style={td}><span className="text-dim mono" style={{ fontSize: '.75rem' }}>{rel(e.createdAt)}</span></td>
                 <td style={td}>
                   {e.identity === 'user'
                     ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Avatar name={e.user?.name ?? e.user?.email ?? '?'} />{e.user?.name ?? e.user?.email}</span>
-                    : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }} className="text-dim"><Avatar name="?" anon /><span>Anonymous <span className="mono text-mute" style={{ fontSize: '.7rem' }}>{e.ip ?? '#' + e.anonId}</span></span></span>}
+                    : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }} className="text-dim"><Avatar name="?" anon /><span>Anonymous <span className="mono text-mute" style={{ fontSize: '.72rem' }}>{e.ip ?? '#' + e.anonId}</span></span></span>}
                 </td>
                 <td style={td}><span className="text-dim">{flag(e.location.countryCode)} {e.location.city ?? e.location.country ?? 'Local'}</span></td>
                 <td style={td}><span className="text-dim">{e.device.browser ?? '—'}{e.device.os ? ` · ${e.device.os}` : ''}</span></td>
@@ -73,13 +73,15 @@ export function ActivityTable({ compact = false }: { compact?: boolean }) {
       </div>
       {!compact && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '.7rem .9rem', borderTop: '1px solid var(--border)' }}>
-          <span className="text-mute" style={{ fontSize: '.76rem' }}>{total.toLocaleString()} events</span>
+          <span className="text-mute" style={{ fontSize: '.76rem' }}>{total.toLocaleString()} events · click a row for details</span>
           <div style={{ display: 'flex', gap: '.4rem' }}>
             <button className="btn" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - limit))} style={{ padding: '.35rem .7rem', fontSize: '.78rem', opacity: offset === 0 ? .4 : 1 }}>Prev</button>
             <button className="btn" disabled={offset + limit >= total} onClick={() => setOffset((o) => o + limit)} style={{ padding: '.35rem .7rem', fontSize: '.78rem', opacity: offset + limit >= total ? .4 : 1 }}>Next</button>
           </div>
         </div>
       )}
+      {selected && <EventDetail event={selected} onClose={() => setSelected(null)} />}
+      <style>{`.act-row:hover{ background: color-mix(in oklab, var(--text) 5%, transparent) } .act-row:focus-visible{ outline: 2px solid var(--accent); outline-offset: -2px }`}</style>
     </GlassPanel>
   );
 }

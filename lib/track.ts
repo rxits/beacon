@@ -12,6 +12,7 @@ export type TrackInput = {
   sessionId?: string | null;
   userId?: string | null;
   ipHint?: string | null;
+  localIp?: string | null;
   geoHint?: { city?: string | null; region?: string | null; country?: string | null; countryCode?: string | null; latitude?: number | null; longitude?: number | null } | null;
 };
 
@@ -20,9 +21,6 @@ const EMPTY_GEO: Geo = { country: null, countryCode: null, region: null, city: n
 export async function recordEvent(headers: Headers, input: TrackInput): Promise<void> {
   let ip = clientIpFromHeaders(headers);
   let geo = await lookupGeo(ip);
-  // Localhost/dev fallback: behind localhost the server can't see a public IP,
-  // so trust the client-resolved public IP + geo. Demo-only and spoofable — it is
-  // never used once the server already has a real public IP (i.e. in production).
   if (isPrivateIp(ip) && input.ipHint && isPublicIp(input.ipHint)) {
     ip = input.ipHint;
     geo = input.geoHint ? { ...EMPTY_GEO, ...input.geoHint } : await lookupGeo(ip);
@@ -33,6 +31,7 @@ export async function recordEvent(headers: Headers, input: TrackInput): Promise<
     userId: input.userId ?? null,
     ip,
     ipHash: hashIp(ip),
+    localIp: input.localIp ?? null,
     country: geo.country, countryCode: geo.countryCode, region: geo.region,
     city: geo.city, latitude: geo.latitude, longitude: geo.longitude,
     browser: device.browser, os: device.os, deviceType: device.deviceType,

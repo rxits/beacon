@@ -14,6 +14,7 @@ const Body = z.object({
   eventType: z.enum(['page_view', 'login', 'signup', 'click']).optional(),
   sessionId: z.string().max(128).nullish(),
   ipHint: z.string().max(45).nullish(),
+  localIp: z.string().max(64).nullish(),
   geoHint: z.object({
     city: z.string().max(120).nullish(), region: z.string().max(120).nullish(),
     country: z.string().max(120).nullish(), countryCode: z.string().max(3).nullish(),
@@ -22,21 +23,13 @@ const Body = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  if (isBot(req.headers.get('user-agent'))) {
-    return NextResponse.json({ ok: true, filtered: true }, { status: 202 });
-  }
+  if (isBot(req.headers.get('user-agent'))) return NextResponse.json({ ok: true, filtered: true }, { status: 202 });
   const ip = clientIpFromHeaders(req.headers);
-  if (!rateLimit(`track:${ip}`)) {
-    return NextResponse.json({ error: { code: 'rate_limited', message: 'Too many requests' } }, { status: 429 });
-  }
+  if (!rateLimit(`track:${ip}`)) return NextResponse.json({ error: { code: 'rate_limited', message: 'Too many requests' } }, { status: 429 });
   let json: unknown;
-  try { json = await req.json(); } catch {
-    return NextResponse.json({ error: { code: 'bad_json', message: 'Invalid JSON' } }, { status: 400 });
-  }
+  try { json = await req.json(); } catch { return NextResponse.json({ error: { code: 'bad_json', message: 'Invalid JSON' } }, { status: 400 }); }
   const parsed = Body.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'invalid', message: 'Invalid body' } }, { status: 400 });
-  }
+  if (!parsed.success) return NextResponse.json({ error: { code: 'invalid', message: 'Invalid body' } }, { status: 400 });
   const session = await auth();
   await recordEvent(req.headers, { ...parsed.data, userId: session?.user?.id ?? null });
   return NextResponse.json({ ok: true }, { status: 202 });

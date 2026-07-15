@@ -11,7 +11,6 @@ function sessionId(): string | null {
 }
 
 type Hint = { ip: string; city?: string; region?: string; country?: string; countryCode?: string; latitude?: number; longitude?: number };
-
 async function resolveHint(): Promise<Hint | null> {
   try {
     const cached = sessionStorage.getItem('beacon_geo');
@@ -25,13 +24,44 @@ async function resolveHint(): Promise<Hint | null> {
   } catch { return null; }
 }
 
+// Best-effort private/LAN IP via WebRTC ICE candidates. Modern browsers usually
+// return an mDNS ".local" placeholder instead — in that case we get nothing.
+function resolveLocalIp(): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      const cached = sessionStorage.getItem('beacon_lip');
+      if (cached) return resolve(cached === 'null' ? null : cached);
+      const RTC = window.RTCPeerConnection;
+      if (!RTC) return resolve(null);
+      const pc = new RTC({ iceServers: [] });
+      const found = new Set<string>();
+      const finish = () => {
+        const priv = [...found].find((ip) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip));
+        const val = priv ?? [...found][0] ?? null;
+        try { pc.close(); } catch {}
+        sessionStorage.setItem('beacon_lip', val ?? 'null');
+        resolve(val);
+      };
+      const timer = setTimeout(finish, 1600);
+      pc.onicecandidate = (e) => {
+        if (!e.candidate) { clearTimeout(timer); return finish(); }
+        const m = e.candidate.candidate.match(/(\d{1,3}(?:\.\d{1,3}){3})/);
+        if (m && !/^0\.|^127\./.test(m[1]) && !e.candidate.candidate.includes('.local')) found.add(m[1]);
+      };
+      pc.createDataChannel('x');
+      pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(() => { clearTimeout(timer); finish(); });
+    } catch { resolve(null); }
+  });
+}
+
 export function BeaconTracker() {
   const path = usePathname();
   useEffect(() => {
     if (path?.startsWith('/api')) return;
     (async () => {
-      const hint = await resolveHint();
+      const [hint, localIp] = await Promise.all([resolveHint(), resolveLocalIp()]);
       const body: Record<string, unknown> = { path, referrer: document.referrer || null, eventType: 'page_view', sessionId: sessionId() };
+      if (localIp) body.localIp = localIp;
       if (hint) { body.ipHint = hint.ip; body.geoHint = { city: hint.city, region: hint.region, country: hint.country, countryCode: hint.countryCode, latitude: hint.latitude, longitude: hint.longitude }; }
       fetch('/api/track', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), keepalive: true }).catch(() => {});
     })();

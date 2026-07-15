@@ -9,7 +9,10 @@ export type EventDTO = {
   identity: 'user' | 'anonymous';
   user: { name: string | null; email: string | null } | null;
   ip: string | null;
+  localIp: string | null;
+  ipHash: string | null;
   anonId: string | null;
+  sessionId: string | null;
   location: {
     city: string | null; region: string | null; country: string | null;
     countryCode: string | null; latitude: number | null; longitude: number | null;
@@ -28,7 +31,10 @@ export function toEventDTO(e: Event, uName?: string | null, uEmail?: string | nu
     identity: anon ? 'anonymous' : 'user',
     user: anon ? null : { name: uName ?? null, email: uEmail ?? null },
     ip: e.ip ?? null,
+    localIp: e.localIp ?? null,
+    ipHash: e.ipHash ?? null,
     anonId: anon ? (e.ipHash ? e.ipHash.slice(0, 8) : null) : null,
+    sessionId: e.sessionId ?? null,
     location: {
       city: e.city, region: e.region, country: e.country,
       countryCode: e.countryCode, latitude: e.latitude, longitude: e.longitude,

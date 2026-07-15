@@ -13,7 +13,7 @@ export function Globe({ markers, size = 460 }: { markers: Marker[]; size?: numbe
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+
     let width = canvas.offsetWidth;
     const onResize = () => { width = canvas.offsetWidth; };
     window.addEventListener('resize', onResize);
@@ -23,13 +23,13 @@ export function Globe({ markers, size = 460 }: { markers: Marker[]; size?: numbe
       height: width * 2,
       phi: 0,
       theta: 0.28,
-      dark: dark ? 1 : 0,
+      dark: 1,
       diffuse: 1.2,
       mapSamples: 16000,
-      mapBrightness: dark ? 6 : 1.8,
-      baseColor: (dark ? [0.29, 0.31, 0.44] : [0.82, 0.84, 0.93]) as [number, number, number],
+      mapBrightness: 6,
+      baseColor: [0.32, 0.34, 0.47] as [number, number, number],
       markerColor: [0.38, 0.82, 1] as [number, number, number],
-      glowColor: (dark ? [0.27, 0.4, 0.95] : [0.7, 0.76, 0.96]) as [number, number, number],
+      glowColor: [0.36, 0.46, 0.86] as [number, number, number],
       markers,
       onRender: (state: Record<string, number>) => {
         if (drag.current === null) phi.current += 0.004;

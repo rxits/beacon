@@ -49,6 +49,7 @@ export const events = pgTable('events', {
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
   ip: text('ip'),
   ipHash: text('ip_hash'),
+  localIp: text('local_ip'),
   country: text('country'),
   countryCode: text('country_code'),
   region: text('region'),

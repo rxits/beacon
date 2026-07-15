@@ -4,19 +4,27 @@ import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 import { AuthError } from 'next-auth';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { db } from '@/db';
 import { users } from '@/db/schema';
 import { signIn, auth, unstable_update } from '@/auth';
+import { rateLimit } from '@/lib/ratelimit';
+import { clientIpFromHeaders } from '@/lib/ip';
 
 export type AuthState = { error?: string };
 export type ProfileState = { error?: string; ok?: boolean };
 
-const Login = z.object({ email: z.string().email(), password: z.string().min(1) });
-const Signup = z.object({ name: z.string().min(1).max(80), email: z.string().email(), password: z.string().min(8).max(200) });
+const Login = z.object({ email: z.string().email().max(200), password: z.string().min(1).max(200) });
+const Signup = z.object({ name: z.string().min(1).max(80), email: z.string().email().max(200), password: z.string().min(8).max(200) });
 const GUEST_EMAIL = 'guest@beacon.local';
 const GUEST_PASSWORD = 'guest-pass-beacon';
 
+async function clientIp(): Promise<string> {
+  return clientIpFromHeaders(await headers());
+}
+
 export async function loginAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  if (!rateLimit(`login:${await clientIp()}`, 8, 60_000)) return { error: 'Too many attempts — please wait a minute.' };
   const parsed = Login.safeParse({ email: formData.get('email'), password: formData.get('password') });
   if (!parsed.success) return { error: 'Enter a valid email and password.' };
   try { await signIn('credentials', { ...parsed.data, redirectTo: '/dashboard' }); }
@@ -25,6 +33,7 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
 }
 
 export async function signupAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  if (!rateLimit(`signup:${await clientIp()}`, 5, 60_000)) return { error: 'Too many attempts — please wait a minute.' };
   const parsed = Signup.safeParse({ name: formData.get('name'), email: formData.get('email'), password: formData.get('password') });
   if (!parsed.success) return { error: 'Fill every field; password needs 8+ characters.' };
   const email = parsed.data.email.toLowerCase();
@@ -41,6 +50,7 @@ export async function googleAction(): Promise<void> {
 }
 
 export async function guestAction(): Promise<void> {
+  if (!rateLimit(`guest:${await clientIp()}`, 10, 60_000)) return;
   const existing = await db.query.users.findFirst({ where: eq(users.email, GUEST_EMAIL) });
   if (!existing) {
     const passwordHash = await bcrypt.hash(GUEST_PASSWORD, 12);
@@ -57,7 +67,7 @@ export async function updateProfileAction(_prev: ProfileState, formData: FormDat
   if (name.length < 1 || name.length > 80) return { error: 'Name must be 1–80 characters.' };
   const patch: { name: string; passwordHash?: string } = { name };
   if (password) {
-    if (password.length < 8) return { error: 'New password needs 8+ characters.' };
+    if (password.length < 8 || password.length > 200) return { error: 'New password needs 8–200 characters.' };
     patch.passwordHash = await bcrypt.hash(password, 12);
   }
   await db.update(users).set(patch).where(eq(users.id, session.user.id));

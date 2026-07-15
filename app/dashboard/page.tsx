@@ -1,12 +1,12 @@
 'use client';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useRange } from '@/components/dashboard/dashboard-context';
 import type { StatsResponse } from '@/lib/queries';
 import { KpiTile } from '@/components/dashboard/KpiTile';
 import { PageHeading } from '@/components/dashboard/PageHeading';
 import { GlassPanel } from '@/components/GlassPanel';
 import { VisitsChart } from '@/components/charts/VisitsChart';
-import { Globe, type Marker } from '@/components/charts/Globe';
+import { WorldMap } from '@/components/charts/WorldMap';
 import { BreakdownChart } from '@/components/charts/BreakdownChart';
 import { ActivityTable } from '@/components/dashboard/ActivityTable';
 import { TiltCard } from '@/components/TiltCard';
@@ -23,11 +23,6 @@ export default function Overview() {
   const k = stats?.kpis;
   const visitsSpark = stats?.series.visits_over_time.map((p) => p.visits) ?? [];
   const uniqSpark = stats?.series.visits_over_time.map((p) => p.uniques) ?? [];
-  const markers = useMemo<Marker[]>(() => {
-    const g = stats?.series.by_geo ?? [];
-    const max = Math.max(1, ...g.map((x) => x.value));
-    return g.map((x) => ({ location: [x.lat, x.lng] as [number, number], size: 0.035 + (x.value / max) * 0.09 }));
-  }, [stats]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
@@ -61,8 +56,8 @@ export default function Overview() {
         </Panel>
       </div>
 
-      <Panel title="Where visitors are" subtitle="Live locations on the globe — drag to spin">
-        <Globe markers={markers} />
+      <Panel title="Where visitors are" subtitle="Visit density by country — hover for detail">
+        <WorldMap data={stats?.series.by_country ?? []} />
       </Panel>
 
       <div>

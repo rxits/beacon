@@ -1,0 +1,28 @@
+import { chromium } from 'playwright-core';
+import fs from 'node:fs';
+const dir = process.argv[2];
+(async () => {
+  const b = await chromium.launch({ args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const ctx = await b.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'dark', recordVideo: { dir, size: { width: 1280, height: 800 } } });
+  const p = await ctx.newPage();
+  const w = (ms: number) => p.waitForTimeout(ms);
+  await p.goto('http://localhost:3000/login', { waitUntil: 'domcontentloaded' }); await w(2200);
+  await p.fill('input[name=email]', 'demo@beacon.local'); await w(400);
+  await p.fill('input[name=password]', 'demo1234'); await w(500);
+  await Promise.all([p.waitForURL('**/dashboard', { timeout: 20000 }).catch(() => {}), p.click('button[type=submit]')]);
+  await w(3200);
+  await p.mouse.wheel(0, 520); await w(1700);
+  await p.mouse.wheel(0, 620); await w(1900);
+  await p.mouse.wheel(0, -1140); await w(700);
+  const theme = p.locator('header button[aria-label*="Switch to"]');
+  await theme.click().catch(() => {}); await w(1900);
+  await theme.click().catch(() => {}); await w(1000);
+  await p.click('a[href="/dashboard/activity"]').catch(() => {}); await w(1900);
+  await p.click('tbody tr:first-child').catch(() => {}); await w(2300);
+  await p.keyboard.press('Escape'); await w(700);
+  await p.click('a[href="/dashboard/map"]').catch(() => {}); await w(2300);
+  await p.click('a[href="/dashboard/settings"]').catch(() => {}); await w(1800);
+  await ctx.close(); await b.close();
+  const f = fs.readdirSync(dir).find((x) => x.endsWith('.webm'));
+  console.log('VIDEO:', f);
+})().catch((e) => { console.error(e); process.exit(1); });

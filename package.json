@@ -30,6 +30,7 @@
     "react-simple-maps": "^3.0.0",
     "recharts": "^3.9.2",
     "ua-parser-js": "^2.0.10",
+    "world-atlas": "^2.0.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {

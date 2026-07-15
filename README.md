@@ -1,47 +1,62 @@
 # Beacon
 
-**A real-time, monochrome, liquid-glass visitor-activity analytics dashboard — a dashboard that watches itself.**
+**A real-time, monochrome, liquid-glass visitor-analytics dashboard — a dashboard that watches itself.**
 
-Beacon's own public pages are the tracked property: every visit becomes an event. Signed-in users open the dashboard and see the full live stream of activity — who visited, from where, on what device — as KPI tiles, a world map, charts, and a live activity table. Anonymous visitors are recorded by public IP; signed-in users by identity.
+Beacon's own pages are the tracked property: every visit becomes a live event. Signed-in users open the dashboard and watch the stream — who visited, from where, on what device — as KPI tiles, a world map, charts, and a live activity table. Anonymous visitors are recorded by hashed IP; signed-in users by identity.
 
-> **Status: design & planning complete.** The `docs/` suite below is the full, approved design. Implementation follows `docs/07-implementation-plan.md` task-by-task (TDD). No application code has been written yet.
+Built with **Next.js 16 (App Router) · TypeScript · Postgres · Drizzle · Auth.js v5**, in a strict **black-and-white** design system with liquid glass, dark/light themes, and reduced-motion support.
 
 ---
 
-## Documentation suite
+## Run locally
 
-| # | Doc | What's in it |
-|---|-----|--------------|
-| 00 | [Product & Design Spec](docs/00-product-spec.md) | **Source of truth** — concept, scope, data, canonical names |
-| 01 | [System Architecture](docs/01-system-architecture.md) | Components, flows (Mermaid), repo tree, real-time, config |
-| 02 | [Data Model](docs/02-data-model.md) | ERD, Drizzle schema, indexes, KPI SQL, seed spec |
-| 03 | [API Design](docs/03-api-design.md) | Every endpoint: zod schemas, responses, errors, SSE |
-| 04 | [UI/UX Spec](docs/04-ui-ux-spec.md) | Monochrome tokens, liquid-glass recipes, components, motion, a11y |
-| 05 | [Privacy & Security](docs/05-privacy-security.md) | PII, consent, IP handling, threat model, hardening |
-| 06 | [ADRs](docs/06-adrs.md) | 10 architecture decision records with alternatives |
-| 07 | [Implementation Plan](docs/07-implementation-plan.md) | 47 TDD tasks across 9 phases |
-
-## Tech stack
-
-Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS v4 · PostgreSQL 16 · Drizzle ORM · Auth.js v5 (Credentials + Google) · Recharts · react-simple-maps · TanStack Table/Virtual · Framer Motion · ua-parser-js · geoip-lite · zod · bcrypt · pnpm.
-
-## Design highlights
-
-- **Monochrome black & white** — no color accent; chart series separated by opacity, stroke, texture, and direct labels.
-- **Liquid-glass** header, tiles, and sidebar; **dark/light** toggle (both themes fully designed).
-- **Real full-stack** — real Postgres, real IP/geo/device capture, real auth. Seeded with **20 demo users** so it's rich on first load.
-- **Real-time** live feed via Postgres `LISTEN/NOTIFY` → SSE (polling fallback).
-- **Accessible** (WCAG 2.2 AA) and **motion-safe** (`prefers-reduced-motion`).
-
-## Quickstart (target workflow, once implemented per `docs/07`)
+Prerequisites: Node 20+, pnpm, Docker (for Postgres).
 
 ```bash
+# 1. Start Postgres
+docker run -d --name beacon-pg \
+  -e POSTGRES_USER=beacon -e POSTGRES_PASSWORD=beacon -e POSTGRES_DB=beacon \
+  -p 5432:5432 postgres:16
+
+# 2. Install deps + env (defaults already point at the Docker DB)
 pnpm install
-cp .env.example .env        # fill in the values below
-pnpm db:push               # apply Drizzle schema
-pnpm seed                  # 20 demo users + activity
-pnpm dev                   # http://localhost:3000
+cp .env.example .env
+
+# 3. Create the schema and seed 20 demo users + ~1000 events
+pnpm db:push
+pnpm seed
+
+# 4. Run
+pnpm dev          # → http://localhost:3000
 ```
+
+**Demo login:** `demo@beacon.local` / `demo1234`
+
+> **If your shell blocks pnpm's post-install build approval** (`ERR_PNPM_IGNORED_BUILDS`), either run `pnpm approve-builds` once, or call the binaries directly — they always work:
+> `./node_modules/.bin/next dev` · `./node_modules/.bin/tsx scripts/seed.ts` · `./node_modules/.bin/drizzle-kit push` · `./node_modules/.bin/vitest run`
+
+```bash
+pnpm test          # unit tests (IP derivation, hashing, UA/bot parsing)
+pnpm build         # production build
+```
+
+## What's built
+
+- **Auth** — email + password (bcrypt) via Auth.js v5; "Continue with Google" appears automatically if `AUTH_GOOGLE_ID/SECRET` are set. Guarded `/dashboard/*` routes.
+- **Ingest** — a client beacon posts every visit to `POST /api/track`; the server derives the real IP (trusted right-most `x-forwarded-for`), geo, and device, rate-limits and bot-filters, and stores a **salted hash** of the IP by default (never the raw IP).
+- **Dashboard** — sidebar + liquid-glass header, dark/light toggle, `24h/7d/30d` range. KPI tiles (visits, uniques, signed-in %, live now, top country), a gradient visits chart (visits vs uniques), a monochrome density **world map**, device/referrer breakdown, and a **live activity table** (filter, search, paginate, new-row highlight).
+- **Pages** — Overview, Activity, Users, Map, Settings.
+
+## Documentation
+
+Full design lives in [`docs/`](docs/): [product spec](docs/00-product-spec.md), [architecture](docs/01-system-architecture.md), [data model](docs/02-data-model.md), [API](docs/03-api-design.md), [UI/UX](docs/04-ui-ux-spec.md), [privacy & security](docs/05-privacy-security.md), [ADRs](docs/06-adrs.md), and the [implementation plan](docs/07-implementation-plan.md).
+
+## Notes / deliberate decisions
+
+- **Live feed via polling** (4s) rather than SSE — simpler, same effect for a localhost demo; SSE is the documented upgrade path.
+- **Geo** uses `geoip-lite` when its (licensed) country DB is present and degrades gracefully to "unknown" otherwise. On localhost all visitors are private-IP, so the map is populated by the seeded data; real public visits resolve in production.
+- **IP is hashed by default** (`IP_STORAGE_MODE=hashed`); raw IPs are never serialized to the client.
+- Seeded with **20 demo users**; real visits (including yours) are captured and appended on top.
 
 ## Environment variables
 
@@ -49,11 +64,7 @@ pnpm dev                   # http://localhost:3000
 |-----|---------|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `AUTH_SECRET` | Auth.js session secret |
-| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth credentials |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Optional Google OAuth |
 | `IP_SALT` | Salt for hashing visitor IPs |
 | `TRUSTED_PROXY_HOPS` | Trusted proxy count for `x-forwarded-for` (default `1`) |
 | `IP_STORAGE_MODE` | `hashed` (default) or `raw` |
-
-## Privacy
-
-Beacon records IP addresses (PII). It ships with a transparent consent notice, stores **hashed** IPs by default, rate-limits and bot-filters ingest, and documents retention. See [docs/05-privacy-security.md](docs/05-privacy-security.md).
